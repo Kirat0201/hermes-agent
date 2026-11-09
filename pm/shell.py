@@ -103,6 +103,35 @@ def _bash_starts(candidate: str) -> bool:
         return False
 
 
+def path_directory(bash_exe: str) -> str:
+    """The directory to put on PATH so a bare ``bash`` runs ``bash_exe``.
+
+    Git for Windows' ``usr\\bin`` also holds coreutils (``find``, ``sort``) that
+    would shadow the Windows commands of the same name, so a sibling ``bin``
+    holding only ``bash``/``sh``/``git`` launchers is preferred when it exists.
+    """
+    directory = os.path.dirname(bash_exe)
+    usr, leaf = os.path.split(directory)
+    root, parent = os.path.split(usr)
+    if leaf.lower() == "bin" and parent.lower() == "usr":
+        launcher = os.path.join(root, "bin", os.path.basename(bash_exe))
+        if os.path.isfile(launcher):
+            return os.path.dirname(launcher)
+    return directory
+
+
+def activation_path_directory() -> str | None:
+    """Git Bash's directory for an activated Windows shell's PATH (``activate.ps1``).
+
+    System32's WSL launcher precedes Git on most PATHs (#116818), so a bare ``bash``
+    there (as in ``just`` recipes) starts WSL instead of the shell bash() resolves.
+    """
+    if os.name != "nt":
+        return None
+    resolved = bash()
+    return path_directory(resolved) if resolved else None
+
+
 def bash() -> str | None:
     """Resolve the bash binary to use, or None if none is available."""
     staged = _staged_bash()

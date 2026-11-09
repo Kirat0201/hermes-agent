@@ -53,9 +53,16 @@ try {
     $json = (& $py -m pm.environments) -join "`n"
     if ($LASTEXITCODE -ne 0) { throw 'activate: could not read the installed environment' }
     $composed = $json | ConvertFrom-Json
+    # Git Bash ahead of System32's WSL launcher, so a bare `bash` (every just recipe) is a shell.
+    $gitBash = (& $py -c 'from pm.shell import activation_path_directory as d; print(d() or str())') -join ''
+    if ($LASTEXITCODE -ne 0) { throw 'activate: could not resolve Git Bash' }
 } finally {
     if ($null -eq $priorPath) { Remove-Item env:PYTHONPATH -ErrorAction SilentlyContinue } else { $env:PYTHONPATH = $priorPath }
     if ($null -eq $priorHome) { Remove-Item env:PYTHONHOME -ErrorAction SilentlyContinue } else { $env:PYTHONHOME = $priorHome }
+}
+if ($gitBash) {
+    $pathProperty = $composed.PSObject.Properties | Where-Object { $_.Name -ieq 'PATH' } | Select-Object -First 1
+    $pathProperty.Value = "$gitBash;$($pathProperty.Value)"
 }
 # __HERMES_ACTIVATED (the sentinel repo scripts and the shebang prologue read)
 # is part of the composed env, so it is saved and restored with the rest.
