@@ -302,6 +302,25 @@ describe('a failed lookup fails CLOSED — never "no chat exists"', () => {
     expect(hostMock.openSession).not.toHaveBeenCalled()
   })
 
+  it('surfaces an owner-only gateway refusal detail without minting a replacement', async () => {
+    const detail = 'send a message to this bot so the gateway can create a local Bot Chat'
+
+    const calls = respondWith(method => {
+      if (method === 'session.list') {
+        throw Object.assign(new Error('bot_chat_not_local'), {
+          data: { reason: 'bot_chat_not_local', detail }
+        })
+      }
+
+      return {}
+    })
+
+    const { openBotCanonicalChat } = await loadModule()
+
+    await expect(openBotCanonicalChat('ops')).rejects.toThrow(detail)
+    expect(calls.some(call => call.method === 'session.create')).toBe(false)
+  })
+
   it('refuses to mint when the adoption lookup inside creation fails', async () => {
     const calls = respondWith(refuseToMint)
     const { createCanonicalChat } = await loadModule()

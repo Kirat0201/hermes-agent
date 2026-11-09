@@ -356,7 +356,9 @@ async function findExistingCanonicalChat(owner: RosterRow | string): Promise<Can
     // Plugin tests and host bridges can return Error-like values from another
     // JS realm, where `instanceof Error` is false. Preserve the provider/RPC
     // message so update-required classification and diagnostics still work.
-    const message = typeof (error as RpcErrorLike)?.message === 'string' ? (error as { message: string }).message : ''
+    const refusal = error as RpcErrorLike & { data?: { detail?: unknown } }
+    const rpcDetail = typeof refusal?.data?.detail === 'string' ? refusal.data.detail : ''
+    const message = rpcDetail || (typeof refusal?.message === 'string' ? refusal.message : '')
     const detail = message ? ` (${message})` : ''
     throw new Error(`Could not check ${name}'s Bot Chat registry${detail} — not starting a new chat`)
   }

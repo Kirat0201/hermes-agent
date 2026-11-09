@@ -28,6 +28,18 @@ def resolve_titled_session(authority, actor, name, *, missing_ok=False):
         if missing_ok:
             return None
         raise RuntimeStoreError('not_found')
+    if (name == 'Bot Chat' and tip.get('title') == 'Bot Chat' and tip.get('source') == 'api_server'
+            and not any(tip.get(key) for key in ('session_key', 'chat_id', 'origin_json'))):
+        native = getattr(authority, '_native_legacy_transports', {}).get(actor.transport_id) == actor
+        own_profile = tip.get('profile_name') in (None, '', authority.db._own_profile_name() or 'default')
+        if (own_profile and actor.profile_id == authority.profile_id and native
+                and {'session:read', 'session:create'} <= actor.capabilities):
+            raise RuntimeStoreError(
+                'bot_chat_not_local', field='title',
+                detail="this profile's Bot Chat belongs to an API session and cannot be opened in Desktop; "
+                       'send a message to this bot so the gateway can keep that conversation separately and '
+                       'create a local Bot Chat',
+            )
     from gateway.session_route_recovery import handed_off_ref
     moved = handed_off_ref(authority, tip['id'])
     try:

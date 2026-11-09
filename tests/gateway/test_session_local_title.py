@@ -73,3 +73,32 @@ def test_resolve_titled_session_finds_recoverable_auto_archived_bot_chat(tmp_pat
         ref = resolve_titled_session(authority, human, 'Bot Chat', missing_ok=True)
         assert ref is not None
         assert ref.session_id == 'local-reaped'
+
+
+def test_native_owner_gets_actionable_refusal_for_api_owned_bot_chat(tmp_path):
+    with SessionDB(db_path=tmp_path / 'state.db') as db:
+        authority = _authority(db)
+        db.create_session('api-chat', source='api_server')
+        db.set_session_title('api-chat', 'Bot Chat')
+        native = SessionActor('native', 'owned', frozenset({'session:read', 'session:create'}), 'native')
+        authority._native_legacy_transports = {native.transport_id: native}
+
+        with pytest.raises(RuntimeStoreError) as caught:
+            resolve_titled_session(authority, native, 'Bot Chat', missing_ok=True)
+
+        assert caught.value.reason == 'bot_chat_not_local'
+        assert caught.value.field == 'title'
+        assert 'send a message to this bot' in caught.value.detail
+        assert db.get_session('api-chat')['title'] == 'Bot Chat'
+        assert db.get_session('api-chat')['source'] == 'api_server'
+
+
+def test_api_owned_bot_chat_refusal_does_not_confirm_title_to_non_native_actor(tmp_path):
+    with SessionDB(db_path=tmp_path / 'state.db') as db:
+        authority = _authority(db)
+        db.create_session('api-chat', source='api_server')
+        db.set_session_title('api-chat', 'Bot Chat')
+        non_native = SessionActor('viewer', 'owned', frozenset({'session:read'}), 'viewer')
+
+        with pytest.raises(RuntimeStoreError, match='not_found'):
+            resolve_titled_session(authority, non_native, 'Bot Chat', missing_ok=True)
